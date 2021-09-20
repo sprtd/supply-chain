@@ -1,6 +1,13 @@
 const truffleAssert  = require('truffle-assertions')
 const SupplyChain = artifacts.require('SupplyChain')
 let supplyChain, accounts, deployer, addr1, addr2, addr3
+let buyerBefore = 0x0000000000000000000000000000000000000000
+let sellerBefore = 0x0000000000000000000000000000000000000000
+let initialState = 'Unassigned'
+
+// conversion helpers
+const toWei = payload => web3.utils.toWei(payload.toString(), 'ether')
+const fromWei = payload => web3.utils.fromWei(payload, 'ether')
 
 
 contract('SupplyChain', async  accountsPayload => {
@@ -58,6 +65,56 @@ contract('SupplyChain', async  accountsPayload => {
       assert(sellerAfter, owner)
       assert(buyerAfter, buyer)
     })
-
   })
+  
+  contract('Buys Item', () => {
+    it('Can buy item put up for sale', async() => {
+      const id = 1
+      const itemBefore = await supplyChain.fetchItems(id)
+      const { name: nameBefore, price: priceBefore, status: statusBefore, seller: sellerBefore, buyer: buyerBefore, sku: skuBefore } = itemBefore
+      assert.equal(statusBefore, initialState)
+      
+      const setName = 'alpha 1'
+      const num = 1
+      const setPrice = toWei(num.toString())
+      
+      await supplyChain.addItem(setName, setPrice, { from : owner })
+      
+      
+      
+      
+      const itemAfterAdd = await supplyChain.fetchItems(num)
+      const { name: nameAfter, price: priceAfter, status: statusAfter, seller: sellerAfter, buyer: buyerAfter, sku: skuAfter } = itemAfterAdd
+      console.log('status before buy item', statusAfter)
+      assert.equal(statusAfter, 'For Sale')
+      assert.equal(sellerAfter, owner)
+      
+      
+      const ownerETHBalBefore = await web3.eth.getBalance(owner)
+      
+      
+      console.log('owner eth balance before', fromWei(ownerETHBalBefore))
+      const payAmount = toWei(num)
+      
+      await supplyChain.buyItem(id, { from : addr1, value: payAmount })
+      const itemAfterBuy = await supplyChain.fetchItems(1)
+      const { name: nameAfterBuy, price: priceAfterBuy, status: statusAfterBuy, seller: sellerAfterBuy, buyer: buyerAfterBuy, sku: skuAfterBuy } = itemAfterBuy
+      
+      const ownerETHBalAfterBuy = await web3.eth.getBalance(owner)
+      console.log('owner balance after buy', fromWei(ownerETHBalAfterBuy))
+      
+      // item status changed to sold
+      assert.equal(statusAfterBuy, 'Sold')
+
+      // buyer changed to address 1
+      assert.equal(buyerAfterBuy, addr1)
+
+      const ethDiff = ownerETHBalAfterBuy - ownerETHBalBefore
+      console.log('eth diff', fromWei(ethDiff.toString()))
+
+      // difference between seller's initial ETH balance and seller's final ETH balance is the amount paid by  buyer
+      assert.equal(fromWei(payAmount), fromWei(ethDiff.toString()))
+    })
+  })
+
 })
